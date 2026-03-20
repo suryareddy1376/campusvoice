@@ -1,23 +1,19 @@
-# ── Build stage ────────────────────────────────────────
 FROM node:20-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files first (better layer caching)
-COPY package*.json ./
+# Copy package files from the server subdirectory
+COPY server/package*.json ./
 
-# Install production dependencies only
+# Install production dependencies
 RUN npm install --omit=dev
 
-# Copy the rest of the server code
-COPY . .
+# Copy the rest of the server source code
+COPY server/ .
 
 # Create uploads directory
 RUN mkdir -p uploads
 
-# Expose the port
 EXPOSE 5000
 
-# Start the server
 CMD ["node", "server.js"]

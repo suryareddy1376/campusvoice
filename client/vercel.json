@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://campusvoice-api.onrender.com/api/:path*"
+      "destination": "https://campusvoice-api-production.up.railway.app/api/:path*"
     },
     {
       "source": "/(.*)",

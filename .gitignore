@@ -1,0 +1,35 @@
+# ── Dependencies ──────────────────────────────────────
+node_modules/
+
+# ── Environment Variables (NEVER commit these) ────────
+.env
+*.env
+.env.local
+.env.production
+
+# ── Build Outputs ─────────────────────────────────────
+client/dist/
+client/build/
+
+# ── Uploaded Files (ephemeral on cloud) ───────────────
+server/uploads/
+
+# ── OS Noise ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor/IDE ────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── Logs ──────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── Temp / Test Files ─────────────────────────────────
+server/test_col.js

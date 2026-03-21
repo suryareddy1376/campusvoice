@@ -86,4 +86,114 @@ async function sendEscalationAlert(superAdminEmail, complaintDetails) {
   }
 }
 
-module.exports = { sendSubmissionConfirmation, sendReplyNotification, sendEscalationAlert };
+async function escalationToHOD(hodEmail, complaintDetails) {
+  const mailOptions = {
+    from: `"CampusVoice Escalations" <${process.env.GMAIL_USER}>`,
+    to: hodEmail,
+    subject: 'Complaint Escalated To Your Department — Action Required',
+    html: `
+      <h2>Action Required: Escalated Complaint</h2>
+      <p>A complaint in your department has not been resolved within 48 hours and has been escalated to you.</p>
+      <ul>
+        <li><b>Complaint ID:</b> ${complaintDetails.id}</li>
+        <li><b>Department:</b> ${complaintDetails.department}</li>
+        <li><b>Category:</b> ${complaintDetails.category}</li>
+        <li><b>Priority:</b> ${complaintDetails.priority}</li>
+        <li><b>Submitted:</b> ${new Date(complaintDetails.created_at).toLocaleString()}</li>
+      </ul>
+      <p><b>Complaint:</b> "${complaintDetails.text}"</p>
+      <p>Please log in and resolve this within 7 days to avoid auto-escalation to the Chairman.</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[Email] Escalation to HOD sent: ${hodEmail}`);
+  } catch (error) {
+    console.error(`[Email Error] sendEscalationToHOD: ${error.message}`);
+  }
+}
+
+async function escalationToChairman(chairmanEmail, complaintDetails) {
+  const mailOptions = {
+    from: `"CampusVoice Executive Alerts" <${process.env.GMAIL_USER}>`,
+    to: chairmanEmail,
+    subject: 'URGENT — Complaint Unresolved After HOD Level',
+    html: `
+      <h2>Immediate Action Required: Executive Escalation</h2>
+      <p>A complaint has not been resolved at the HOD level and has been escalated to the Chairman.</p>
+      <ul>
+        <li><b>Complaint ID:</b> ${complaintDetails.id}</li>
+        <li><b>Department:</b> ${complaintDetails.department}</li>
+        <li><b>Priority:</b> ${complaintDetails.priority}</li>
+        <li><b>Submitted:</b> ${new Date(complaintDetails.created_at).toLocaleString()}</li>
+        <li><b>Escalated to HOD at:</b> ${new Date(complaintDetails.escalated_at || complaintDetails.created_at).toLocaleString()}</li>
+        <li><b>Days Elapsed:</b> ${complaintDetails.days || 7}</li>
+      </ul>
+      <p><b>Complaint:</b> "${complaintDetails.text}"</p>
+      <p>This issue requires your immediate personal attention as department SLAs have been breached.</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[Email] Escalation to Chairman sent: ${chairmanEmail}`);
+  } catch (error) {
+    console.error(`[Email Error] sendEscalationToChairman: ${error.message}`);
+  }
+}
+
+async function emergencyToChairman(chairmanEmail, complaintDetails) {
+  const mailOptions = {
+    from: `"CampusVoice EMERGENCY" <${process.env.GMAIL_USER}>`,
+    to: chairmanEmail,
+    subject: 'EMERGENCY COMPLAINT — IMMEDIATE ACTION REQUIRED',
+    html: `
+      <h2 style="color: red;">🚨 EMERGENCY: IMMEDIATE ACTION REQUIRED 🚨</h2>
+      <p>An emergency complaint has been submitted and remains unresolved or requires immediate fast-track attention.</p>
+      <ul>
+        <li><b>Complaint ID:</b> ${complaintDetails.id}</li>
+        <li><b>Submitted:</b> ${new Date(complaintDetails.created_at).toLocaleString()}</li>
+      </ul>
+      <p><b>Complaint Details:</b> "${complaintDetails.text}"</p>
+      <p><strong>This requires your immediate personal attention per emergency protocols.</strong></p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[Email] Emergency to Chairman sent: ${chairmanEmail}`);
+  } catch (error) {
+    console.error(`[Email Error] sendEmergencyToChairman: ${error.message}`);
+  }
+}
+
+async function studentEscalationNotice(studentEmail, level, complaintId) {
+  const mailOptions = {
+    from: `"CampusVoice Support" <${process.env.GMAIL_USER}>`,
+    to: studentEmail,
+    subject: 'Your complaint has been escalated',
+    html: `
+      <h2>Complaint Escalation Notice</h2>
+      <p>Your complaint <b>${complaintId}</b> has been escalated to the <b>${level}</b> level because it was not resolved within the required timeframe.</p>
+      <p>We are committed to resolving this as soon as possible and have notified the appropriate higher authorities.</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`[Email] Student Escalation Notice sent: ${studentEmail}`);
+  } catch (error) {
+    console.error(`[Email Error] sendStudentEscalationNotice: ${error.message}`);
+  }
+}
+
+module.exports = {
+  sendSubmissionConfirmation,
+  sendReplyNotification,
+  sendEscalationAlert,
+  escalationToHOD,
+  escalationToChairman,
+  emergencyToChairman,
+  studentEscalationNotice
+};

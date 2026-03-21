@@ -83,7 +83,18 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <AppRoutes />
+          <div className="relative min-h-screen bg-slate-950 text-slate-200 overflow-x-hidden selection:bg-neonPurple/30">
+            {/* ChronoVerse Ambient Background Orbs */}
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+              <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-neonPurple/20 blur-[120px] animate-orb-pulse" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] rounded-full bg-neonBlue/20 blur-[120px] animate-orb-pulse" style={{ animationDelay: '2s' }} />
+            </div>
+            
+            {/* Foreground Content */}
+            <div className="relative z-10 flex flex-col min-h-screen">
+              <AppRoutes />
+            </div>
+          </div>
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>

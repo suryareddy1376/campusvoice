@@ -19,11 +19,11 @@ export function useUsers() {
     }
   }, []);
 
-  const createAdmin = async (name, email, password, department) => {
+  const createAdmin = async (name, email, password, department, level = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await api.post('/users/admin', { name, email, password, department });
+      const { data } = await api.post('/users/admin', { name, email, password, department, level });
       setAdmins((prev) => [data, ...prev]);
       return data;
     } catch (err) {

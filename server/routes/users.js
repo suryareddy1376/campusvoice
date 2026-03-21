@@ -19,17 +19,23 @@ router.get('/admins', authenticate, authorize('super_admin'), async (req, res) =
       return res.status(400).json({ error: error.message });
     }
 
-    // Fetch Auth users to get user_metadata.department
-    const { data: { users: authUsers }, error: authListError } = await supabase.auth.admin.listUsers();
-    
-    let mergedAdmins = admins;
-    if (!authListError && authUsers) {
-      mergedAdmins = admins.map(admin => {
-        const authUser = authUsers.find(u => u.id === admin.id);
-        const department = authUser?.user_metadata?.department || 'All';
-        return { ...admin, department };
+    // Fetch department & level from department_admins table
+    const { data: deptAdmins } = await supabase
+      .from('department_admins')
+      .select('user_id, department, level');
+
+    const deptMap = {};
+    if (deptAdmins) {
+      deptAdmins.forEach(da => {
+        deptMap[da.user_id] = { department: da.department, level: da.level };
       });
     }
+
+    const mergedAdmins = admins.map(admin => ({
+      ...admin,
+      department: deptMap[admin.id]?.department || 'All',
+      level: deptMap[admin.id]?.level || null,
+    }));
 
     res.json(mergedAdmins);
   } catch (error) {
@@ -41,7 +47,7 @@ router.get('/admins', authenticate, authorize('super_admin'), async (req, res) =
 // POST /api/users/admin — create a new admin account
 router.post('/admin', authenticate, authorize('super_admin'), async (req, res) => {
   try {
-    const { name, email, password, department } = req.body;
+    const { name, email, password, department, level } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required' });
@@ -51,12 +57,15 @@ router.post('/admin', authenticate, authorize('super_admin'), async (req, res) =
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
+    const adminLevel = parseInt(level) || 1; // Default to Level 1 (Staff)
+    const adminDepartment = department || 'All';
+
     // 1. Create user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { name, department: department || 'All' }
+      user_metadata: { name, department: adminDepartment, level: adminLevel }
     });
 
     if (authError) {
@@ -76,12 +85,25 @@ router.post('/admin', authenticate, authorize('super_admin'), async (req, res) =
       .single();
 
     if (dbError) {
-      // Rollback auth creation
       await supabase.auth.admin.deleteUser(authData.user.id);
       return res.status(400).json({ error: dbError.message });
     }
 
-    res.status(201).json({ ...user, department: department || 'All' });
+    // 3. Insert into department_admins for escalation routing
+    const { error: deptError } = await supabase
+      .from('department_admins')
+      .insert({
+        user_id: authData.user.id,
+        department: adminDepartment,
+        level: adminLevel,
+      });
+
+    if (deptError) {
+      console.error('department_admins insert error (non-fatal):', deptError.message);
+      // Non-fatal: the admin account exists, just the escalation mapping is missing
+    }
+
+    res.status(201).json({ ...user, department: adminDepartment, level: adminLevel });
   } catch (error) {
     console.error('Create admin error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -109,7 +131,13 @@ router.delete('/admin/:id', authenticate, authorize('super_admin'), async (req, 
       return res.status(400).json({ error: 'Can only delete admin accounts from this endpoint' });
     }
 
-    // 1. Delete from users table
+    // 1. Delete from department_admins first (FK dependency)
+    await supabase
+      .from('department_admins')
+      .delete()
+      .eq('user_id', id);
+
+    // 2. Delete from users table
     const { error: dbError } = await supabase
       .from('users')
       .delete()
@@ -119,7 +147,7 @@ router.delete('/admin/:id', authenticate, authorize('super_admin'), async (req, 
       return res.status(400).json({ error: dbError.message });
     }
 
-    // 2. Delete from Supabase Auth
+    // 3. Delete from Supabase Auth
     const { error: authError } = await supabase.auth.admin.deleteUser(id);
     
     if (authError) {

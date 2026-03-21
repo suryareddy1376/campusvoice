@@ -46,6 +46,7 @@ app.use('/api/complaints',   require('./routes/complaints'));
 app.use('/api/ai',           require('./routes/ai'));
 app.use('/api/analytics',    require('./routes/analytics'));
 app.use('/api/transparency', require('./routes/transparency'));
+app.use('/api/demo-seed',    require('./routes/demo'));
 app.use('/api/users',        require('./routes/users'));
 
 // ── Health check ───────────────────────────────────────

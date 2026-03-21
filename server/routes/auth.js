@@ -116,13 +116,29 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'User not found in database' });
     }
 
-    // Extract department from user metadata (admins only, default to 'All')
-    const department = authData.user.user_metadata?.department || 'All';
+    // Extract department and level from department_admins table if they are an admin
+    let department = 'All';
+    let level = null;
+
+    if (user.role === 'admin') {
+      const { data: deptAdmin } = await supabase
+        .from('department_admins')
+        .select('department, level')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (deptAdmin) {
+        department = deptAdmin.department;
+        level = deptAdmin.level;
+      }
+    }
+
     user.department = department;
+    user.level = level;
 
     // Generate JWT
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name, department },
+      { id: user.id, email: user.email, role: user.role, name: user.name, department, level },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );

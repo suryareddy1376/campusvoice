@@ -13,8 +13,9 @@ export function useComplaints() {
     try {
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
-      if (filters.category) params.append('category', filters.category);
+      if (filters.department) params.append('department', filters.department);
       if (filters.priority) params.append('priority', filters.priority);
+      if (filters.escalation_level) params.append('escalation_level', filters.escalation_level);
 
       const { data } = await api.get(`/complaints?${params.toString()}`);
       setComplaints(data);

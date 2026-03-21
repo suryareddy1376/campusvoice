@@ -7,11 +7,11 @@
    ───────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
-  --bg-base:        #0f172a;
-  --bg-card:        #1e293b;
-  --bg-input:       #0f172a;
-  --bg-badge:       #1e293b;
-  --bg-hover:       rgba(255,255,255,0.04);
+  --bg-base:        #020617; /* slate-950 */
+  --bg-card:        rgba(30, 41, 59, 0.4); /* translucent card */
+  --bg-input:       rgba(15, 23, 42, 0.6);
+  --bg-badge:       rgba(30, 41, 59, 0.6);
+  --bg-hover:       rgba(255,255,255,0.06);
 
   --text-primary:   #f8fafc;
   --text-secondary: #94a3b8;
@@ -148,6 +148,21 @@ body {
 
 /* Background utility — responds to theme */
 .bg-slate-900 { background-color: var(--bg-base) !important; }
+
+/* Glassmorphism Context - ChronoVerse */
+.glass-card {
+  background-color: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+.glass-card:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
 
 /* Clay Card */
 .clay-card {

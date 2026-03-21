@@ -27,18 +27,44 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
+function getEscalationDeadline(department, level) {
+  if (department === 'Emergency') {
+    return new Date(Date.now() + 4 * 60 * 60 * 1000);
+  }
+  if (level === 1) {
+    return new Date(Date.now() + 48 * 60 * 60 * 1000);
+  }
+  if (level === 2) {
+    return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  }
+  return null;
+}
+
+const EMERGENCY_KEYWORDS = [
+  'emergency', 'medical emergency', 'fire', 'flood', 'unconscious', 'accident', 
+  'ambulance', 'severe injury', 'bleeding', 'fainted', 'collapsed', 'not breathing', 
+  'chest pain', 'violent assault', 'physical assault', 'sexual assault', 
+  'ragging violence', 'weapon threat', 'gas leak', 'electric shock', 'drowning', 
+  'suicide attempt', 'self harm', 'building fire', 'serious accident', 'head injury'
+];
+
+function isEmergency(text) {
+  const lowerText = text.toLowerCase();
+  return EMERGENCY_KEYWORDS.some(kw => lowerText.includes(kw));
+}
+
 // POST /api/complaints — student submits complaint with optional image
 router.post('/', authenticate, authorize('student'), upload.single('evidenceImage'), async (req, res) => {
   try {
     const { text, is_anonymous } = req.body;
     let imagePath = null;
     let mimeType = null;
-    let imageUrl = null;
+    // let imageUrl = null;
 
     if (req.file) {
       imagePath = req.file.path;
       mimeType = req.file.mimetype;
-      imageUrl = `/uploads/${req.file.filename}`;
+      // imageUrl = `/uploads/${req.file.filename}`;
     }
 
     if (!text || text.trim().length === 0) {
@@ -53,21 +79,34 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
       return res.status(400).json({ error: 'System detected this as invalid or spam content. Ensure your image actually matches the grievance.' });
     }
 
-    // Insert complaint
     const final_text = classification.translated_text ? classification.translated_text : text;
+    
+    // Check Emergency
+    let department = classification.category;
+    let initialStatus = 'Submitted';
+    let escalationLevel = 1;
+
+    if (isEmergency(final_text)) {
+      department = 'Emergency';
+      escalationLevel = 3;
+    }
+
+    // Insert complaint
+    const insertPayload = {
+        student_id: req.user.id,
+        text: final_text,
+        category: classification.category, // keep original category for analytics
+        department: department,
+        priority: department === 'Emergency' ? 'High' : classification.priority,
+        sentiment: classification.sentiment,
+        is_anonymous: is_anonymous === 'true' || is_anonymous === true,
+        status: department === 'Emergency' ? 'Escalated_To_Chairman' : 'Submitted',
+        escalation_level: escalationLevel,
+      };
 
     const { data: complaint, error } = await supabase
       .from('complaints')
-      .insert({
-        student_id: req.user.id,
-        text: final_text,
-        category: classification.category,
-        priority: classification.priority,
-        sentiment: classification.sentiment,
-        is_anonymous: is_anonymous === 'true' || is_anonymous === true,
-        // image_url: imageUrl, // Commented out to prevent Supabase Schema errors during Hackathon judging
-        status: 'Submitted',
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -75,8 +114,38 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
       return res.status(400).json({ error: error.message });
     }
 
+    // Set escalation deadline and assigned_to if emergency
+    const deadline = getEscalationDeadline(department, 1);
+    const updatePayload = { escalation_deadline: deadline };
+    
+    let chairmanEmail = null;
+
+    if (department === 'Emergency') {
+      // Find Chairman user
+      const { data: chairmanObj } = await supabase
+        .from('department_admins')
+        .select('user_id, users(email)')
+        .eq('level', 3)
+        .limit(1)
+        .single();
+        
+      if (chairmanObj) {
+        updatePayload.assigned_to = chairmanObj.user_id;
+        updatePayload.escalated_at = new Date().toISOString();
+        if (chairmanObj.users) chairmanEmail = chairmanObj.users.email;
+      }
+    }
+
+    await supabase
+      .from('complaints')
+      .update(updatePayload)
+      .eq('id', complaint.id);
+
     // Log action
     await logAction(complaint.id, 'Complaint submitted', req.user.id);
+    if (department === 'Emergency') {
+        await logAction(complaint.id, 'Emergency_Escalated_To_Chairman', 'system');
+    }
 
     // Send confirmation email
     sendSubmissionConfirmation(req.user.email, complaint.id);
@@ -88,29 +157,71 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
   }
 });
 
+async function getVisibleComplaints(userId, userRole) {
+  if (userRole === 'student') {
+    return supabase
+      .from('complaints')
+      .select('*, student:users!complaints_student_id_fkey(id, name, email)')
+      .eq('student_id', userId)
+      .order('created_at', { ascending: false });
+  }
+
+  if (userRole === 'super_admin') {
+    return supabase
+      .from('complaints')
+      .select('*, student:users!complaints_student_id_fkey(id, name, email)')
+      .order('created_at', { ascending: false });
+  }
+
+  if (userRole === 'admin') {
+    const { data: deptAdmin } = await supabase
+      .from('department_admins')
+      .select('department, level')
+      .eq('user_id', userId)
+      .single();
+
+    if (!deptAdmin) {
+        // Return a query that yields empty if not found
+        return supabase.from('complaints').select('*, student:users!complaints_student_id_fkey(id, name, email)').eq('id', '00000000-0000-0000-0000-000000000000');
+    }
+
+    if (deptAdmin.level === 3 || deptAdmin.department === 'All') {
+      return supabase
+        .from('complaints')
+        .select('*, student:users!complaints_student_id_fkey(id, name, email)')
+        .order('created_at', { ascending: false });
+    }
+
+    if (deptAdmin.level === 2) {
+      return supabase
+        .from('complaints')
+        .select('*, student:users!complaints_student_id_fkey(id, name, email)')
+        .eq('department', deptAdmin.department)
+        .order('created_at', { ascending: false });
+    }
+
+    if (deptAdmin.level === 1) {
+      return supabase
+        .from('complaints')
+        .select('*, student:users!complaints_student_id_fkey(id, name, email)')
+        .eq('department', deptAdmin.department)
+        .in('escalation_level', [1])
+        .order('created_at', { ascending: false });
+    }
+  }
+}
+
 // GET /api/complaints — admin/super_admin list with filters, student sees own
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { status, category, priority } = req.query;
+    const { status, priority, department, escalation_level } = req.query;
 
-    let query = supabase.from('complaints').select(`
-      *,
-      student:users!complaints_student_id_fkey(id, name, email)
-    `).order('created_at', { ascending: false });
-
-    // Students only see their own complaints
-    if (req.user.role === 'student') {
-      query = query.eq('student_id', req.user.id);
-    }
-    
-    // Admins only see complaints related to their department (unless they have 'All')
-    if (req.user.role === 'admin' && req.user.department && req.user.department !== 'All') {
-      query = query.eq('category', req.user.department);
-    }
+    let query = await getVisibleComplaints(req.user.id, req.user.role);
 
     if (status) query = query.eq('status', status);
-    if (category) query = query.eq('category', category); // Allows further frontend filtering, but bounded by the above
     if (priority) query = query.eq('priority', priority);
+    if (department) query = query.eq('department', department);
+    if (escalation_level) query = query.eq('escalation_level', parseInt(escalation_level));
 
     const { data: complaints, error } = await query;
 
@@ -133,7 +244,127 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/complaints/:id — full complaint with replies and audit log
+// GET /api/complaints/escalated
+// Returns all complaints currently at HOD or Chairman level for the logged-in user's visibility scope
+router.get('/escalated', authenticate, authorize('admin', 'super_admin'), async (req, res) => {
+  try {
+    let query = await getVisibleComplaints(req.user.id, req.user.role);
+    query = query.in('escalation_level', [2, 3]);
+
+    const { data: complaints, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+
+    res.json(complaints);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/complaints/emergency
+// Returns all active emergency complaints — admin and super_admin only
+router.get('/emergency', authenticate, authorize('admin', 'super_admin'), async (req, res) => {
+  try {
+    let query = await getVisibleComplaints(req.user.id, req.user.role);
+    query = query.eq('department', 'Emergency');
+
+    const { data: complaints, error } = await query;
+    if (error) return res.status(400).json({ error: error.message });
+
+    res.json(complaints);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/complaints/:id/escalation-history
+// Returns full escalation trail from audit_logs for a complaint
+router.get('/:id/escalation-history', authenticate, authorize('admin', 'super_admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: auditLogs, error } = await supabase
+      .from('audit_logs')
+      .select('*, performer:users!audit_logs_performed_by_fkey(id, name)')
+      .eq('complaint_id', id)
+      .like('action', '%Escalated%')
+      .order('timestamp', { ascending: true });
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(auditLogs);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/complaints/:id/manual-escalate
+// Admin can manually escalate before deadline
+router.post('/:id/manual-escalate', authenticate, authorize('admin', 'super_admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, escalate_to } = req.body;
+
+    if (!['HOD', 'Chairman'].includes(escalate_to)) {
+      return res.status(400).json({ error: 'Invalid escalate_to value' });
+    }
+
+    const { data: complaint, error: fetchError } = await supabase
+      .from('complaints')
+      .select('*, student:users!complaints_student_id_fkey(email)')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !complaint) return res.status(404).json({ error: 'Complaint not found' });
+
+    let targetLevel = escalate_to === 'HOD' ? 2 : 3;
+    let assignedUserId = null;
+    let targetEmail = null;
+
+    // Find the target admin
+    let adminQuery = supabase.from('department_admins').select('user_id, users(email)').eq('level', targetLevel);
+    if (targetLevel === 2) {
+      adminQuery = adminQuery.eq('department', complaint.department);
+    }
+    const { data: targetAdmin } = await adminQuery.limit(1).single();
+
+    if (targetAdmin) {
+      assignedUserId = targetAdmin.user_id;
+      if (targetAdmin.users) targetEmail = targetAdmin.users.email;
+    }
+
+    const { data: updatedComplaint, error: updateError } = await supabase
+      .from('complaints')
+      .update({
+        escalation_level: targetLevel,
+        status: `Escalated_To_${escalate_to}`,
+        assigned_to: assignedUserId,
+        escalated_at: new Date().toISOString(),
+        escalation_deadline: targetLevel === 2 ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) return res.status(400).json({ error: updateError.message });
+
+    await logAction(id, `Manually Escalated_To_${escalate_to}. Reason: ${reason}`, req.user.id);
+
+    // Call mailers (will implement them in mailer.js soon)
+    const { escalationToHOD, escalationToChairman, studentEscalationNotice } = require('../services/mailer');
+    
+    if (targetEmail) {
+      if (escalate_to === 'HOD') escalationToHOD(targetEmail, updatedComplaint);
+      if (escalate_to === 'Chairman') escalationToChairman(targetEmail, updatedComplaint);
+    }
+    
+    if (complaint.student && complaint.student.email) {
+      studentEscalationNotice(complaint.student.email, escalate_to, id);
+    }
+
+    res.json(updatedComplaint);
+  } catch (error) {
+    console.error('Manual escalate error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;

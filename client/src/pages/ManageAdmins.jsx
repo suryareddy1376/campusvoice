@@ -25,6 +25,7 @@ export default function ManageAdmins() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('All');
+  const [adminLevel, setAdminLevel] = useState(1);
   const [creationError, setCreationError] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
   const [openDepts, setOpenDepts] = useState(new Set(DEPARTMENTS.map(d => d.id)));
@@ -38,11 +39,12 @@ export default function ManageAdmins() {
     setCreationError(null);
     setIsCreating(true);
     try {
-      await createAdmin(name, email, password, department);
+      await createAdmin(name, email, password, department, adminLevel);
       setName('');
       setEmail('');
       setPassword('');
       setDepartment('All');
+      setAdminLevel(1);
       fetchAdmins();
     } catch (err) {
       setCreationError(err.message);
@@ -96,7 +98,7 @@ export default function ManageAdmins() {
 
           {/* ── Create Admin Form ── */}
           <div className="lg:col-span-1">
-            <div className="clay-card p-6 sticky top-24">
+            <div className="glass-card p-6 sticky top-24 bg-slate-900/60 border border-white/10">
               <h2 className="text-base font-semibold text-white mb-1">Create New Admin</h2>
               {department !== 'All' ? (
                 <p className="text-xs text-violet-400 mb-4">
@@ -148,7 +150,7 @@ export default function ManageAdmins() {
                   <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full clay-input px-3 py-2 text-sm text-white"
+                    className="w-full bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:border-neonPurple focus:ring-1 focus:ring-neonPurple transition-all outline-none"
                   >
                     <option value="All">All Departments (General Admin)</option>
                     {DEPARTMENTS.map(d => (
@@ -157,9 +159,28 @@ export default function ManageAdmins() {
                   </select>
                 </div>
 
+                {department !== 'All' && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">Role Type</label>
+                    <select
+                      value={adminLevel}
+                      onChange={(e) => setAdminLevel(Number(e.target.value))}
+                      className="w-full bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:border-neonPurple focus:ring-1 focus:ring-neonPurple transition-all outline-none"
+                    >
+                      <option value={1}>👤 Department Staff (Level 1)</option>
+                      <option value={2}>🎓 Head of Department — HOD (Level 2)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {adminLevel === 1 
+                        ? 'Staff handle new complaints. Auto-escalated to HOD after 48h.' 
+                        : 'HOD receives escalated complaints. Auto-escalated to Chairman after 7 days.'}
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit" disabled={isCreating}
-                  className="w-full clay-btn-primary text-white px-4 py-2 text-sm font-medium flex justify-center items-center gap-2 mt-4"
+                  className="w-full bg-gradient-to-r from-neonPurple to-neonBlue text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-neonPurple/20 disabled:opacity-50 transition-all hover:-translate-y-0.5 uppercase tracking-wide flex justify-center items-center gap-2 mt-4"
                 >
                   {isCreating ? 'Creating...' : (
                     <>
@@ -179,7 +200,7 @@ export default function ManageAdmins() {
 
             {/* Super Admins */}
             {superAdmins.length > 0 && (
-              <div className="clay-card overflow-hidden">
+              <div className="glass-card overflow-hidden bg-slate-900/60 border border-white/10">
                 <div className="p-4 flex items-center gap-3 border-b border-white/5 bg-purple-900/20">
                   <span className="flex items-center justify-center w-8 h-8 rounded-lg text-base bg-purple-800/60 border border-purple-600/50">👑</span>
                   <div>
@@ -224,7 +245,7 @@ export default function ManageAdmins() {
               const deptAdmins = adminsByDept[dept.id] || [];
               const isOpen = openDepts.has(dept.id);
               return (
-                <div key={dept.id} className={`clay-card overflow-hidden ring-1 ${dept.ring}`}>
+                <div key={dept.id} className={`glass-card overflow-hidden bg-slate-900/40 border border-white/10 ring-1 ${dept.ring}`}>
                   {/* Header row */}
                   <button
                     onClick={() => toggleDept(dept.id)}
@@ -281,6 +302,12 @@ export default function ManageAdmins() {
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-white flex items-center gap-2 flex-wrap">
                                   {admin.name}
+                                  {admin.level === 2 && (
+                                    <span className="bg-amber-900/40 text-amber-400 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/30 font-bold tracking-wider">HOD</span>
+                                  )}
+                                  {admin.level === 1 && (
+                                    <span className="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full border border-slate-600/50">STAFF</span>
+                                  )}
                                   {admin.id === user?.id && (
                                     <span className="bg-slate-700 text-slate-300 text-[10px] px-2 py-0.5 rounded-full">You</span>
                                   )}

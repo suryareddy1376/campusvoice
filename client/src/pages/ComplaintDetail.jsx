@@ -149,7 +149,12 @@ export default function ComplaintDetail() {
                 <div className="text-right flex flex-col items-end">
                   <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Deadline</span>
                   <div className="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700/50 shadow-inner">
-                    <CountdownTimer createdAt={complaint.created_at} /> {/* Could switch to deadline-based timer here if we port EscalationTimer over, but this is fine for now */}
+                    <CountdownTimer 
+                      deadlineStr={complaint.escalation_deadline} 
+                      status={complaint.status} 
+                      department={complaint.department} 
+                      createdAt={complaint.created_at} 
+                    />
                   </div>
                 </div>
               )}

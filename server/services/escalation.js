@@ -9,9 +9,9 @@ const {
 } = require('./mailer');
 
 function startEscalationCron() {
-  // Run every 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
-    console.log('[Escalation Cron] Running escalation check...');
+  // Run every 1 minute to strictly catch 10-min Emergency SLAs
+  cron.schedule('*/1 * * * *', async () => {
+    // console.log('[Escalation Cron] Running escalation check...'); 
 
     try {
       const now = new Date().toISOString();
@@ -175,7 +175,7 @@ function startEscalationCron() {
     }
   });
 
-  console.log('[Escalation Cron] Scheduled — runs every 15 minutes.');
+  console.log('[Escalation Cron] Scheduled — runs every 1 minute for strict SLAs.');
 }
 
 module.exports = { startEscalationCron };

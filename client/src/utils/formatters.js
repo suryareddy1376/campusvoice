@@ -1,6 +1,15 @@
+// Helper to ensure Postgres timestamp without timezone is parsed as UTC
+const parseUTC = (dateString) => {
+  if (!dateString) return null;
+  // If it doesn't already have timezone info, append 'Z' so it parses as UTC
+  const hasTimezone = dateString.endsWith('Z') || dateString.includes('+') || dateString.match(/-\d{2}:\d{2}$/);
+  const safeStr = hasTimezone ? dateString : `${dateString}Z`;
+  return new Date(safeStr);
+};
+
 export function formatDate(dateString) {
   if (!dateString) return '—';
-  return new Date(dateString).toLocaleDateString('en-IN', {
+  return parseUTC(dateString).toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -9,7 +18,7 @@ export function formatDate(dateString) {
 
 export function formatDateTime(dateString) {
   if (!dateString) return '—';
-  return new Date(dateString).toLocaleString('en-IN', {
+  return parseUTC(dateString).toLocaleString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -21,7 +30,7 @@ export function formatDateTime(dateString) {
 export function formatTimeAgo(dateString) {
   if (!dateString) return '—';
   const now = new Date();
-  const date = new Date(dateString);
+  const date = parseUTC(dateString);
   const diffMs = now - date;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);

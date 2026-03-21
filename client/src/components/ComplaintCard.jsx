@@ -36,7 +36,12 @@ export default function ComplaintCard({ complaint, onClick }) {
       <div className="flex items-start justify-between mb-3">
         <span className="text-xs text-neonBlue font-mono tracking-wider drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]">#{getShortId(complaint.id)}</span>
         {complaint.status !== 'Resolved' && (
-          <CountdownTimer createdAt={complaint.created_at} />
+          <CountdownTimer 
+            deadlineStr={complaint.escalation_deadline} 
+            status={complaint.status} 
+            department={complaint.department} 
+            createdAt={complaint.created_at} 
+          />
         )}
       </div>
 

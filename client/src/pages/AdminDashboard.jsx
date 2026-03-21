@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge';
 import SentimentBadge from '../components/SentimentBadge';
 import { truncateText, getShortId, formatTimeAgo } from '../utils/formatters';
 import Navbar from '../components/Navbar';
+import CountdownTimer from '../components/CountdownTimer';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const priorityStyles = {
@@ -21,62 +22,6 @@ const getEscalationBadge = (level, department) => {
   if (level === 3) return <span className="text-xs rounded-full px-2 py-0.5 bg-red-900/80 text-white border border-red-500/30">Chairman Level</span>;
   if (level === 2) return <span className="text-xs rounded-full px-2 py-0.5 bg-amber-900/80 text-white border border-amber-500/30">HOD Level</span>;
   return <span className="text-xs rounded-full px-2 py-0.5 bg-slate-700 text-slate-300">Department</span>;
-};
-
-// Colored Countdown Timer based on deadline
-const EscalationTimer = ({ deadlineStr, status, department }) => {
-  const [timeLeft, setTimeLeft] = useState('');
-  const [colorClass, setColorClass] = useState('text-slate-400');
-
-  useEffect(() => {
-    if (status === 'Resolved' || status === 'Resolved_On_Ground') {
-      setTimeLeft('Resolved');
-      setColorClass('text-green-400');
-      return;
-    }
-
-    if (!deadlineStr && status === 'Escalated_To_Chairman') {
-      setTimeLeft('Max Escalation');
-      setColorClass('text-red-400 animate-pulse');
-      return;
-    }
-
-    if (!deadlineStr) {
-      setTimeLeft('No deadline');
-      return;
-    }
-
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      const deadline = new Date(deadlineStr).getTime();
-      const difference = deadline - now;
-
-      if (difference <= 0) {
-        setTimeLeft('Overdue');
-        setColorClass('text-red-500 font-bold animate-pulse');
-        clearInterval(interval);
-      } else {
-        const hours = Math.floor(difference / (1000 * 60 * 60));
-        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-        
-        setTimeLeft(`${hours}h ${minutes}m left`);
-        
-        if (department === 'Emergency' && hours < 1) {
-          setColorClass('text-red-500 font-bold animate-pulse');
-        } else if (hours < 6) {
-          setColorClass('text-red-400');
-        } else if (hours < 24) {
-          setColorClass('text-amber-400');
-        } else {
-          setColorClass('text-green-400');
-        }
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [deadlineStr, status, department]);
-
-  return <span className={`text-xs ${colorClass}`}>{timeLeft}</span>;
 };
 
 export default function AdminDashboard() {
@@ -255,7 +200,12 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-4 py-3 flex items-center mt-2.5"><StatusBadge status={c.status} /></td>
                         <td className="px-4 py-3 whitespace-nowrap font-mono tracking-wider">
-                          <EscalationTimer deadlineStr={c.escalation_deadline} status={c.status} department={c.department} />
+                          <CountdownTimer 
+                            deadlineStr={c.escalation_deadline} 
+                            status={c.status} 
+                            department={c.department} 
+                            createdAt={c.created_at} 
+                          />
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-500 font-mono">{formatTimeAgo(c.created_at)}</td>
                       </motion.tr>

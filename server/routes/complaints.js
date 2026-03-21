@@ -29,7 +29,7 @@ const upload = multer({
 
 function getEscalationDeadline(department, level) {
   if (department === 'Emergency') {
-    return new Date(Date.now() + 4 * 60 * 60 * 1000);
+    return new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
   }
   if (level === 1) {
     return new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -88,7 +88,7 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
 
     if (isEmergency(final_text)) {
       department = 'Emergency';
-      escalationLevel = 3;
+      escalationLevel = 1; // Start at Level 1 for Emergency Response Team (cron escalates to 3 after 4h)
     }
 
     // Insert complaint
@@ -100,7 +100,7 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
         priority: department === 'Emergency' ? 'High' : classification.priority,
         sentiment: classification.sentiment,
         is_anonymous: is_anonymous === 'true' || is_anonymous === true,
-        status: department === 'Emergency' ? 'Escalated_To_Chairman' : 'Submitted',
+        status: 'Submitted', // Start as Submitted even for Emergency
         escalation_level: escalationLevel,
       };
 
@@ -114,25 +114,21 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
       return res.status(400).json({ error: error.message });
     }
 
-    // Set escalation deadline and assigned_to if emergency
+    // Set escalation deadline and assigned_to
     const deadline = getEscalationDeadline(department, 1);
     const updatePayload = { escalation_deadline: deadline };
-    
-    let chairmanEmail = null;
 
     if (department === 'Emergency') {
-      // Find Chairman user
-      const { data: chairmanObj } = await supabase
+      // Find Emergency Admin to assign it to first
+      const { data: emergencyAdmin } = await supabase
         .from('department_admins')
-        .select('user_id, users(email)')
-        .eq('level', 3)
+        .select('user_id')
+        .eq('department', 'Emergency')
         .limit(1)
         .single();
         
-      if (chairmanObj) {
-        updatePayload.assigned_to = chairmanObj.user_id;
-        updatePayload.escalated_at = new Date().toISOString();
-        if (chairmanObj.users) chairmanEmail = chairmanObj.users.email;
+      if (emergencyAdmin) {
+        updatePayload.assigned_to = emergencyAdmin.user_id;
       }
     }
 
@@ -143,9 +139,6 @@ router.post('/', authenticate, authorize('student'), upload.single('evidenceImag
 
     // Log action
     await logAction(complaint.id, 'Complaint submitted', req.user.id);
-    if (department === 'Emergency') {
-        await logAction(complaint.id, 'Emergency_Escalated_To_Chairman', 'system');
-    }
 
     // Send confirmation email
     sendSubmissionConfirmation(req.user.email, complaint.id);

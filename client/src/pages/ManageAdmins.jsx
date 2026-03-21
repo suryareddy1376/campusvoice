@@ -6,6 +6,7 @@ import { formatDateTime } from '../utils/formatters';
 import Navbar from '../components/Navbar';
 
 const DEPARTMENTS = [
+  { id: 'Emergency',      label: '🚨 Emergency Response',          color: 'bg-red-900/50 text-red-300 border-red-700/50',            ring: 'ring-red-500/30'     },
   { id: 'Hostel',         label: '🏠 Hostel & Accommodation',     color: 'bg-indigo-900/50 text-indigo-300 border-indigo-700/50',   ring: 'ring-indigo-500/30'  },
   { id: 'Academic',       label: '📚 Academic & Faculty',          color: 'bg-cyan-900/50 text-cyan-300 border-cyan-700/50',         ring: 'ring-cyan-500/30'    },
   { id: 'Infrastructure', label: '🏗️ Infrastructure & Facilities', color: 'bg-orange-900/50 text-orange-300 border-orange-700/50',   ring: 'ring-orange-500/30'  },
